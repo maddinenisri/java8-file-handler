@@ -1,164 +1,90 @@
 package com.mdstech.largefile;
 
-import com.aol.cyclops2.types.futurestream.LazyFutureStreamFunctions;
-import com.mdstech.largefile.bus.BlockingQueueContainer;
 import com.mdstech.largefile.stream.ReadFileDataAsStream;
-import com.mdstech.largefile.util.FunctionWithException;
-import cyclops.async.LazyReact;
-import cyclops.async.adapters.Queue;
-import cyclops.collections.mutable.ListX;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.nio.ByteBuffer;
+import java.nio.channels.AsynchronousFileChannel;
+import java.nio.channels.CompletionHandler;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.*;
-import java.util.function.Function;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static java.util.stream.Collectors.counting;
-import static java.util.stream.Collectors.groupingByConcurrent;
+import static java.nio.file.StandardOpenOption.*;
 
 public class Processor {
 
     public void processLargeFile(String largeFilePath) throws Exception {
         ExecutorService executor = Executors.newFixedThreadPool(100);
-        BlockingQueueContainer blockingQueueContainer = new BlockingQueueContainer(new LinkedBlockingDeque<>());
         ReadFileDataAsStream readFileDataAsStream = new ReadFileDataAsStream(largeFilePath);
 
-        List<CompletableFuture<Boolean>> batches =
+        List<CompletableFuture<String>> batches =
                 BatchingIterator.batchedStreamOf(readFileDataAsStream.readDataStreamFromFile(25), 5000)
                     .map(list -> processChunk(list, executor))
-                    .collect(Collectors.<CompletableFuture<Boolean>>toList());
-
+                    .collect(Collectors.<CompletableFuture<String>>toList());
 
         CompletableFuture<Void> allDoneFuture =
                 CompletableFuture.allOf(batches.toArray(new CompletableFuture[batches.size()]));
 
-        CompletableFuture<List<Boolean>> statuses =
+        CompletableFuture<List<String>> filenames =
                 allDoneFuture
                         .thenApply(v ->
                                 batches
                                         .stream()
                                         . map(future -> future.join())
-                                        .collect(Collectors.<Boolean>toList()));
+                                        .collect(Collectors.<String>toList()));
 
-        System.out.println(statuses.get().size());
-
-
-
-//        CompletableFuture aComFuture = CompletableFuture.supplyAsync(() -> "", executor);
-//        BatchingIterator.batchedStreamOf(readFileDataAsStream.readDataStreamFromFile(25), 5000)
-//                .forEach(list -> aComFuture.thenApply(fn -> process(list)));
-//
-//        aComFuture.join();
-
-//        Long num = BatchingIterator.batchedStreamOf(readFileDataAsStream.readDataStreamFromFile(25), 5000)
-////                .map(list -> {
-////                    Collections.shuffle(list); return list; })
-////                .flatMap(List::stream)
-//                .map(x -> process(x)).collect(counting());
-
-//        System.out.println(num);
-//        LazyReact.parallelBuilder().fromStream(readFileDataAsStream.readDataStreamFromFile(25))
-//                .grouped(5000)
-//                .map(this::process)
-//                .run();
-
-
-//        Queue queue = new Queue();
-//
-//        CompletableFuture<Integer> integerCompletableFuture = new CompletableFuture<>();
-//        Runnable runnable1 = new Runnable() {
-//            @Override
-//            public void run() {
-//                try {
-//                    queue.fromStream(readFileDataAsStream.readDataStreamFromFile(25));
-//                } catch (IOException e) {
-//                    e.printStackTrace();
-//                }
-//            }
-//        };
-//
-//        Runnable runnable2 = () -> {
-//            queue.stream()
-//                    .map(entity -> true)
-//                    .collect(groupingByConcurrent(s -> s, counting()));
-//        };
-//
-//        CompletableFuture.runAsync(runnable1).thenCombine(runnable2)
-
-        //        Map<Object, Long> words  = readFileDataAsStream
-//                .readDataStreamFromFile(25).parallel()
-//                .map(line -> blockingQueueContainer.putToQueue(line))
-//                .collect(groupingByConcurrent(s -> s, counting()));;
-//
-//        CompletableFuture.supplyAsync(() -> blockingQueueContainer.takeFromQueue(), executor);
-//        System.out.println("----------");
-//
-//
-//        blockingQueueContainer.setNoData(true);
-//        System.out.println(words +":"+ blockingQueueContainer.getQueueSize());
-////        while(!completableFuture.isDone()) {
-////            System.out.println("Waiting for completion ..."+ blockingQueueContainer.getQueueSize());
-////        }
-//        System.out.println("Completed reading....");
+        System.out.println(filenames.get().size());
     }
 
-    private Integer process(List<String> strings) {
-        System.out.println("Processing...."+Thread.currentThread().getName());
-        return 1;
-    }
-
-
-
-//    private String process(ListX<String> strings) {
-//        System.out.println("Processing....");
-//        return null;
-//    }
-
-
-    private <T, R, E extends Exception> Function<T, R> wrapper(FunctionWithException<T, R, E> fe) {
-        return arg -> {
-            try {
-                return fe.apply(arg);
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        };
-    }
-
-    private String parseData(String status) {
-        System.out.println("Processing...."+Thread.currentThread().getName());
-        return status;
-    }
-
-    private String writeToFile(List<String> data) {
-        try {
-
-            Thread.sleep(1000);
-            System.out.println("Processing...."+Thread.currentThread().getName()+" .... " + data.get(0));
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-        return "success";
-    }
-
-    private CompletableFuture<Boolean> processChunk(List<String> chunkData, ExecutorService executor) {
-        return CompletableFuture.supplyAsync(new Supplier<Boolean>() {
+    private CompletableFuture<String> processChunk(List<String> chunkData, ExecutorService executor) {
+        return CompletableFuture.supplyAsync(new Supplier<String>() {
             @Override
-            public Boolean get() {
+            public String get() {
+                String fileName = null;
                 try {
-                    Thread.sleep(1000);
+                    fileName = writeToFile(chunkData);
                     System.out.println("Processing...."+Thread.currentThread().getName()+" .... " + chunkData.size());
-                } catch (InterruptedException e) {
+                } catch (IOException e) {
                     e.printStackTrace();
-                    return false;
                 }
-                return true;
+                return fileName;
             }
         }, executor);
     }
 
+    private String writeToFile(List<String> chunkData) throws IOException {
+        String fileName = UUID.randomUUID().toString();
+        Path path = Paths.get(String.format("/Users/srini/IdeaProjects/java8-file-handler/target/data/data_%s.csv", fileName));
+        AsynchronousFileChannel fileChannel = AsynchronousFileChannel.open(
+                path, WRITE, CREATE);
+
+        ByteBuffer buffer = ByteBuffer.allocate(chunkData.size()*2048);
+        String data = chunkData.stream().collect(Collectors.joining("\n"));
+        buffer.put(data.getBytes());
+        buffer.flip();
+
+        fileChannel.write(
+                buffer, 0, buffer, new CompletionHandler<Integer, ByteBuffer>() {
+                    @Override
+                    public void completed(Integer result, ByteBuffer attachment) {
+                        System.out.println("Attachment: " + attachment + " " + result
+                                + " bytes written");
+                        System.out.println("CompletionHandler Thread ID: "
+                                + Thread.currentThread().getId());
+                    }
+                    @Override
+                    public void failed(Throwable exc, ByteBuffer attachment) {
+                        System.err.println("Attachment: " + attachment + " failed with:");
+                        exc.printStackTrace();
+                    }
+                });
+        return fileName;
+    }
 }
