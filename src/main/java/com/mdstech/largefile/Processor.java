@@ -61,7 +61,7 @@ public class Processor {
 
     private String writeToFile(List<String> chunkData) throws IOException {
         String fileName = UUID.randomUUID().toString();
-        Path path = Paths.get(String.format("/Users/srini/IdeaProjects/java8-file-handler/target/data/data_%s.csv", fileName));
+        Path path = Paths.get(String.format("/Users/srini/IdeaProjects/java8-file-handler/target/data_%s.csv", fileName));
         AsynchronousFileChannel fileChannel = AsynchronousFileChannel.open(
                 path, WRITE, CREATE);
 
