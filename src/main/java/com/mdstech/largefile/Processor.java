@@ -74,12 +74,12 @@ public class Processor {
 
     private void printMemoryBean(MemoryPoolMXBean memoryPoolMXBean) {
         MemoryUsage mu = memoryPoolMXBean.getPeakUsage();
-        System.out.println(String.format("%30s%20d%20d%20d%20d",
+        System.out.println(String.format("%30s%17.3f MB%17.3f MB%17.3f MB%17.3f MB",
                 memoryPoolMXBean.getName(),
-                mu.getCommitted(),
-                mu.getUsed(),
-                mu.getInit(),
-                mu.getMax()
+                mu.getCommitted()/ (double)1048576,
+                mu.getUsed()/ (double)1048576,
+                mu.getInit()/ (double)1048576,
+                mu.getMax()/ (double)1048576
                 ));
     }
 
