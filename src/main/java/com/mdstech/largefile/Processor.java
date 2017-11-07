@@ -9,6 +9,8 @@ import java.nio.channels.CompletionHandler;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -23,11 +25,12 @@ public class Processor {
 
     public void processLargeFile(String largeFilePath) throws Exception {
 //        ExecutorService executor = Executors.newFixedThreadPool(100);
+        Instant startInstant = Instant.now();
         System.setProperty("java.util.concurrent.ForkJoinPool.common.parallelism", "100");
         ReadFileDataAsStream readFileDataAsStream = new ReadFileDataAsStream(largeFilePath);
 
         List<CompletableFuture<String>> batches =
-                BatchingIterator.batchedStreamOf(readFileDataAsStream.readDataStreamFromFile(25), 5000)
+                BatchingIterator.batchedStreamOf(readFileDataAsStream.readDataStreamFromFile(5000), 5000)
                     .map(list -> processChunk(list))
                     .collect(Collectors.<CompletableFuture<String>>toList());
 
@@ -43,10 +46,12 @@ public class Processor {
                                         .collect(Collectors.<String>toList()));
 
         filenames.thenAcceptAsync( this::combineFiles ).get();
-        System.out.println("Completed Main Thread");
+        Instant endInstant = Instant.now();
+        System.out.println("elapsed time ( milliseconds ): " + Duration.between(startInstant, endInstant).toMillis());
     }
 
     private void combineFiles(List<String> files) {
+        Instant startInstant = Instant.now();
         System.out.println("Start combine files");
         Path path = Paths.get("/Users/srini/IdeaProjects/java8-file-handler/target/output_data.csv");
         try(FileChannel fileChannel = FileChannel.open(
@@ -77,7 +82,8 @@ public class Processor {
         catch (IOException e) {
             e.printStackTrace();
         }
-        System.out.println("End combine files");
+        Instant endInstant = Instant.now();
+        System.out.println("End combine files, total time in millis: " + Duration.between(startInstant, endInstant).toMillis());
     }
 
     private CompletableFuture<String> processChunk(List<String> chunkData) {
