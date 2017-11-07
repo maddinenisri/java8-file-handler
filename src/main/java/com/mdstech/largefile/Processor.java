@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousFileChannel;
 import java.nio.channels.CompletionHandler;
+import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
@@ -21,12 +22,13 @@ import static java.nio.file.StandardOpenOption.*;
 public class Processor {
 
     public void processLargeFile(String largeFilePath) throws Exception {
-        ExecutorService executor = Executors.newFixedThreadPool(100);
+//        ExecutorService executor = Executors.newFixedThreadPool(100);
+        System.setProperty("java.util.concurrent.ForkJoinPool.common.parallelism", "100");
         ReadFileDataAsStream readFileDataAsStream = new ReadFileDataAsStream(largeFilePath);
 
         List<CompletableFuture<String>> batches =
                 BatchingIterator.batchedStreamOf(readFileDataAsStream.readDataStreamFromFile(25), 5000)
-                    .map(list -> processChunk(list, executor))
+                    .map(list -> processChunk(list))
                     .collect(Collectors.<CompletableFuture<String>>toList());
 
         CompletableFuture<Void> allDoneFuture =
@@ -40,10 +42,45 @@ public class Processor {
                                         . map(future -> future.join())
                                         .collect(Collectors.<String>toList()));
 
-        System.out.println(filenames.get().size());
+        filenames.thenAcceptAsync( this::combineFiles ).get();
+        System.out.println("Completed Main Thread");
     }
 
-    private CompletableFuture<String> processChunk(List<String> chunkData, ExecutorService executor) {
+    private void combineFiles(List<String> files) {
+        System.out.println("Start combine files");
+        Path path = Paths.get("/Users/srini/IdeaProjects/java8-file-handler/target/output_data.csv");
+        try(FileChannel fileChannel = FileChannel.open(
+                path, WRITE, CREATE)) {
+            files.stream().forEach(fileName -> {
+                Path inPath = Paths.get(String.format("/Users/srini/IdeaProjects/java8-file-handler/target/data_%s.csv", fileName));
+                try(FileChannel inFileChannel = FileChannel.open(
+                        inPath, READ)) {
+                    try {
+                        for(long p = 0, l = inFileChannel.size(); p<l; ) {
+                            p+=inFileChannel.transferTo(p, l-p, fileChannel);
+                        }
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                    ByteBuffer buffer = ByteBuffer.allocate(1);
+                    buffer.put(System.lineSeparator().getBytes());
+                    fileChannel.write(buffer);
+
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            });
+            ByteBuffer buffer = ByteBuffer.allocate(1);
+            buffer.put(System.lineSeparator().getBytes());
+            fileChannel.write(buffer);
+        }
+        catch (IOException e) {
+            e.printStackTrace();
+        }
+        System.out.println("End combine files");
+    }
+
+    private CompletableFuture<String> processChunk(List<String> chunkData) {
         return CompletableFuture.supplyAsync(new Supplier<String>() {
             @Override
             public String get() {
@@ -56,7 +93,7 @@ public class Processor {
                 }
                 return fileName;
             }
-        }, executor);
+        });
     }
 
     private String writeToFile(List<String> chunkData) throws IOException {
@@ -66,8 +103,9 @@ public class Processor {
                 path, WRITE, CREATE);
 
         ByteBuffer buffer = ByteBuffer.allocate(chunkData.size()*2048);
-        String data = chunkData.stream().collect(Collectors.joining("\n"));
+        String data = chunkData.stream().collect(Collectors.joining(System.lineSeparator())).concat(System.lineSeparator());
         buffer.put(data.getBytes());
+
         buffer.flip();
 
         fileChannel.write(
