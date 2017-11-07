@@ -30,21 +30,7 @@ public class Processor {
     public void processLargeFile(String largeFilePath) throws Exception {
 //        ExecutorService executor = Executors.newFixedThreadPool(100);
         OperatingSystemMXBean bean = (OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
-        List<MemoryPoolMXBean> mpmxList = ManagementFactory.getMemoryPoolMXBeans();
-        for (MemoryPoolMXBean pl : mpmxList) {
-            String name=pl.getName();
-            System.out.println(name);
-            MemoryUsage mu = pl.getPeakUsage();
-            System.out.println("---using MemoryUsage---");
-            // memory that can be used by JVM
-            System.out.println(mu.getCommitted());
-            // memory that is being used by JVM
-            System.out.println(mu.getUsed());
-            //memory which has been request initially.
-            System.out.println(mu.getInit());
-            //max memory that can be requested.
-            System.out.println(mu.getMax());
-        }
+        memoryStatistics(ManagementFactory.getMemoryPoolMXBeans());
         System.out.println(bean.getProcessCpuLoad());
         Instant startInstant = Instant.now();
         System.setProperty("java.util.concurrent.ForkJoinPool.common.parallelism", "100");
@@ -69,22 +55,34 @@ public class Processor {
         filenames.thenAcceptAsync( this::combineFiles ).get();
         Instant endInstant = Instant.now();
         System.out.println(bean.getProcessCpuLoad());
-        for (MemoryPoolMXBean pl : mpmxList) {
-            String name=pl.getName();
-            System.out.println(name);
-            MemoryUsage mu = pl.getPeakUsage();
-            System.out.println("---using MemoryUsage---");
-            // memory that can be used by JVM
-            System.out.println(mu.getCommitted());
-            // memory that is being used by JVM
-            System.out.println(mu.getUsed());
-            //memory which has been request initially.
-            System.out.println(mu.getInit());
-            //max memory that can be requested.
-            System.out.println(mu.getMax());
-        }
+        memoryStatistics(ManagementFactory.getMemoryPoolMXBeans());
         System.out.println("elapsed time ( milliseconds ): " + Duration.between(startInstant, endInstant).toMillis());
     }
+
+    private void memoryStatistics(List<MemoryPoolMXBean> mpmxList) {
+        System.out.println(String.format("%110s", "--").replaceAll(" ", "-"));
+        System.out.println(String.format("%30s%20s%20s%20s%20s","Name",
+                "Commited",
+                "Used",
+                "Init",
+                "Max"
+        ));
+        System.out.println(String.format("%110s", "--").replaceAll(" ", "-"));
+        mpmxList.stream().forEach(this::printMemoryBean);
+        System.out.println(String.format("%110s", "--").replaceAll(" ", "-"));
+    }
+
+    private void printMemoryBean(MemoryPoolMXBean memoryPoolMXBean) {
+        MemoryUsage mu = memoryPoolMXBean.getPeakUsage();
+        System.out.println(String.format("%30s%20d%20d%20d%20d",
+                memoryPoolMXBean.getName(),
+                mu.getCommitted(),
+                mu.getUsed(),
+                mu.getInit(),
+                mu.getMax()
+                ));
+    }
+
 
     private void combineFiles(List<String> files) {
         Instant startInstant = Instant.now();
