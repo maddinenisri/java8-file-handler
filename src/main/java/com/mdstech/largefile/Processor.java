@@ -3,6 +3,10 @@ package com.mdstech.largefile;
 import com.mdstech.largefile.stream.ReadFileDataAsStream;
 
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
+import com.sun.management.OperatingSystemMXBean;
+import java.lang.management.MemoryPoolMXBean;
+import java.lang.management.MemoryUsage;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousFileChannel;
 import java.nio.channels.CompletionHandler;
@@ -25,6 +29,23 @@ public class Processor {
 
     public void processLargeFile(String largeFilePath) throws Exception {
 //        ExecutorService executor = Executors.newFixedThreadPool(100);
+        OperatingSystemMXBean bean = (OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
+        List<MemoryPoolMXBean> mpmxList = ManagementFactory.getMemoryPoolMXBeans();
+        for (MemoryPoolMXBean pl : mpmxList) {
+            String name=pl.getName();
+            System.out.println(name);
+            MemoryUsage mu = pl.getPeakUsage();
+            System.out.println("---using MemoryUsage---");
+            // memory that can be used by JVM
+            System.out.println(mu.getCommitted());
+            // memory that is being used by JVM
+            System.out.println(mu.getUsed());
+            //memory which has been request initially.
+            System.out.println(mu.getInit());
+            //max memory that can be requested.
+            System.out.println(mu.getMax());
+        }
+        System.out.println(bean.getProcessCpuLoad());
         Instant startInstant = Instant.now();
         System.setProperty("java.util.concurrent.ForkJoinPool.common.parallelism", "100");
         ReadFileDataAsStream readFileDataAsStream = new ReadFileDataAsStream(largeFilePath);
@@ -47,6 +68,21 @@ public class Processor {
 
         filenames.thenAcceptAsync( this::combineFiles ).get();
         Instant endInstant = Instant.now();
+        System.out.println(bean.getProcessCpuLoad());
+        for (MemoryPoolMXBean pl : mpmxList) {
+            String name=pl.getName();
+            System.out.println(name);
+            MemoryUsage mu = pl.getPeakUsage();
+            System.out.println("---using MemoryUsage---");
+            // memory that can be used by JVM
+            System.out.println(mu.getCommitted());
+            // memory that is being used by JVM
+            System.out.println(mu.getUsed());
+            //memory which has been request initially.
+            System.out.println(mu.getInit());
+            //max memory that can be requested.
+            System.out.println(mu.getMax());
+        }
         System.out.println("elapsed time ( milliseconds ): " + Duration.between(startInstant, endInstant).toMillis());
     }
 
@@ -93,7 +129,7 @@ public class Processor {
                 String fileName = null;
                 try {
                     fileName = writeToFile(chunkData);
-                    System.out.println("Processing...."+Thread.currentThread().getName()+" .... " + chunkData.size());
+//                    System.out.println("Processing...."+Thread.currentThread().getName()+" .... " + chunkData.size());
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -118,10 +154,10 @@ public class Processor {
                 buffer, 0, buffer, new CompletionHandler<Integer, ByteBuffer>() {
                     @Override
                     public void completed(Integer result, ByteBuffer attachment) {
-                        System.out.println("Attachment: " + attachment + " " + result
-                                + " bytes written");
-                        System.out.println("CompletionHandler Thread ID: "
-                                + Thread.currentThread().getId());
+//                        System.out.println("Attachment: " + attachment + " " + result
+//                                + " bytes written");
+//                        System.out.println("CompletionHandler Thread ID: "
+//                                + Thread.currentThread().getId());
                     }
                     @Override
                     public void failed(Throwable exc, ByteBuffer attachment) {
